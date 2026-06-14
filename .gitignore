@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+.env
+
+# Streamlit
+.streamlit/secrets.toml
+
+# MT5 generated output
+mt5_direct_output/
+mt5_direct_output_v2/
+mt5_diagnostic_output/
+
+# Reports / local generated files
+*.xlsx
+*.csv
+*.png
+*.txt
+
+# OS
+.DS_Store
+Thumbs.db
