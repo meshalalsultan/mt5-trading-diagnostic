@@ -1,14 +1,14 @@
-# mt5_diagnostic_dashboard_v4_file_upload.py
+# mt5_diagnostic_dashboard.py
 # ------------------------------------------------------------
-# MT5 Diagnostic Dashboard - V4 File Upload
+# MT5 Diagnostic Dashboard - Final File Upload Premium UI
 #
 # هذه النسخة لا تحتاج منصة MT5 ولا حساب العميل.
 # العميل يرفع ملف CSV / HTML / XLS / XLSX
-# والداشبورد يحلل الملف ويعرض نفس التشخيص والرسوم.
+# والداشبورد يحلل الملف ويعرض التشخيص والرسوم.
 #
 # التشغيل:
 # python -m pip install -r requirements.txt
-# streamlit run mt5_diagnostic_dashboard_v4_file_upload.py
+# streamlit run mt5_diagnostic_dashboard.py
 # ------------------------------------------------------------
 
 import tempfile
@@ -38,53 +38,70 @@ CUSTOM_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Cairo:wght@400;600;700;800;900&display=swap');
 
+:root {
+    --navy: #0f172a;
+    --blue: #1d4ed8;
+    --blue2: #1e40af;
+    --muted: #475569;
+    --soft: #f8fafc;
+    --card: rgba(255,255,255,0.96);
+    --border: rgba(226,232,240,0.95);
+}
+
 html, body, [class*="css"]  {
     font-family: 'Tajawal', 'Cairo', Tahoma, Arial, sans-serif !important;
 }
 
 body {
-    color: #0f172a;
+    color: var(--navy);
 }
 
 .stApp {
-    background: radial-gradient(circle at top left, #e0f2fe 0%, transparent 32%),
-                radial-gradient(circle at top right, #ede9fe 0%, transparent 30%),
-                linear-gradient(180deg, #f8fbff 0%, #f4f7fb 45%, #eef3f9 100%);
+    background:
+        radial-gradient(circle at top left, rgba(186,230,253,0.75) 0%, transparent 30%),
+        radial-gradient(circle at top right, rgba(221,214,254,0.72) 0%, transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, #f4f7fb 45%, #eef3f9 100%);
 }
 
 .block-container {
-    padding-top: 1.3rem;
+    padding-top: 1.0rem;
     padding-bottom: 2rem;
-    max-width: 1500px;
+    max-width: 1520px;
 }
+
+/* Hide Streamlit default UI */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
 
 /* =========================
    Hero
    ========================= */
 .hero-card {
-    background: linear-gradient(135deg, #0f172a 0%, #172554 48%, #1e40af 100%);
-    border-radius: 28px;
-    padding: 30px 34px;
+    background: linear-gradient(135deg, #0f172a 0%, #172554 52%, #1e40af 100%);
+    border-radius: 24px;
+    padding: 22px 30px;
     color: white;
-    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28);
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.25);
     border: 1px solid rgba(255,255,255,0.10);
+    margin-bottom: 18px;
 }
 
 .hero-title {
-    font-size: 44px;
+    font-size: 38px;
     font-weight: 900;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     line-height: 1.15;
     text-align: left;
-    letter-spacing: -0.5px;
+    letter-spacing: -0.4px;
 }
 
 .hero-subtitle {
-    font-size: 21px;
+    font-size: 19px;
     font-weight: 600;
     color: #e2e8f0;
     margin-bottom: 0;
-    line-height: 1.7;
+    line-height: 1.6;
     text-align: left;
 }
 
@@ -95,11 +112,11 @@ body {
     display: inline-block;
     background: #ffffff;
     color: #0f172a;
-    padding: 10px 16px;
+    padding: 9px 15px;
     border-radius: 999px;
     font-size: 15px;
-    font-weight: 700;
-    margin: 8px 8px 0 0;
+    font-weight: 800;
+    margin: 6px 8px 0 0;
     border: 1px solid #dbeafe;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
@@ -108,7 +125,7 @@ body {
    Typography
    ========================= */
 .section-title {
-    font-size: 32px;
+    font-size: 30px;
     font-weight: 900;
     color: #0f172a;
     margin-top: 4px;
@@ -119,45 +136,64 @@ body {
 .small-muted {
     color: #334155;
     font-size: 17px;
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1.95;
     text-align: left;
 }
 
+/* =========================
+   KPI Cards
+   ========================= */
 .kpi-card {
-    background: rgba(255,255,255,0.96);
-    border: 1px solid rgba(226,232,240,0.9);
-    border-radius: 22px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 24px;
     padding: 18px 22px;
-    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
-    min-height: 132px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.065);
+    min-height: 126px;
+    position: relative;
+    overflow: hidden;
+}
+
+.kpi-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 100%;
+    background: linear-gradient(180deg, #1d4ed8, #38bdf8);
 }
 
 .kpi-label {
     color: #475569;
-    font-size: 24px;
-    font-weight: 800;
-    margin-bottom: 10px;
+    font-size: 19px;
+    font-weight: 900;
+    margin-bottom: 8px;
 }
 
 .kpi-value {
-    color: #0f172a;
-    font-size: 36px;
+    color: #020617;
+    font-size: 34px;
     font-weight: 900;
-    margin-top: 6px;
-    margin-bottom: 8px;
-    line-height: 1.2;
+    margin-top: 4px;
+    margin-bottom: 7px;
+    line-height: 1.18;
+    letter-spacing: -0.3px;
 }
 
 .kpi-note {
     color: #64748b;
     font-size: 15px;
-    font-weight: 500;
+    font-weight: 600;
 }
 
+/* =========================
+   Cards
+   ========================= */
 .panel-card {
-    background: rgba(255,255,255,0.96);
-    border: 1px solid rgba(226,232,240,0.9);
+    background: var(--card);
+    border: 1px solid var(--border);
     border-radius: 24px;
     padding: 22px;
     box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
@@ -169,7 +205,8 @@ body {
     border: 1px solid #fed7aa;
     border-radius: 24px;
     padding: 22px;
-    box-shadow: 0 12px 28px rgba(251, 146, 60, 0.11);
+    box-shadow: 0 12px 28px rgba(251, 146, 60, 0.12);
+    margin-bottom: 16px;
 }
 
 .recommendation-card {
@@ -177,12 +214,13 @@ body {
     border: 1px solid #a7f3d0;
     border-radius: 24px;
     padding: 22px;
-    box-shadow: 0 12px 28px rgba(16, 185, 129, 0.11);
+    box-shadow: 0 12px 28px rgba(16, 185, 129, 0.12);
+    margin-bottom: 16px;
 }
 
 .flag-card, .plan-card {
     background: rgba(255,255,255,0.97);
-    border: 1px solid rgba(226,232,240,0.9);
+    border: 1px solid var(--border);
     border-radius: 22px;
     padding: 20px;
     box-shadow: 0 12px 28px rgba(15, 23, 42, 0.055);
@@ -198,7 +236,7 @@ body {
 .flag-message {
     color: #1e293b;
     font-size: 17px;
-    font-weight: 500;
+    font-weight: 600;
     margin-top: 12px;
     line-height: 1.85;
     text-align: left;
@@ -207,7 +245,7 @@ body {
 .flag-suggestion {
     color: #475569;
     font-size: 16px;
-    font-weight: 500;
+    font-weight: 600;
     margin-top: 10px;
     line-height: 1.85;
     text-align: left;
@@ -263,13 +301,15 @@ body {
    ========================= */
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px;
+    border-bottom: 1px solid #cbd5e1;
+    padding-bottom: 4px;
 }
 
 .stTabs [data-baseweb="tab"] {
-    background-color: rgba(255,255,255,0.82);
+    background-color: rgba(255,255,255,0.88);
     border-radius: 14px;
     padding: 10px 20px;
-    font-weight: 800;
+    font-weight: 900;
     font-size: 18px;
     color: #0f172a;
     border: 1px solid #e5e7eb;
@@ -281,75 +321,154 @@ body {
 }
 
 /* =========================
-   Sidebar
+   Sidebar - Fixed Readability
    ========================= */
+
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0f172a 0%, #172554 100%);
-    border-right: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, #0b1224 0%, #111c3a 100%) !important;
+    border-right: 1px solid rgba(255,255,255,0.10);
+}
+
+[data-testid="stSidebar"] > div {
+    background: transparent !important;
 }
 
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] h3 {
+    color: #ffffff !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.2px;
+}
+
 [data-testid="stSidebar"] label,
-[data-testid="stSidebar"] .stMarkdown,
 [data-testid="stSidebar"] p,
 [data-testid="stSidebar"] span,
-[data-testid="stSidebar"] div[data-testid="stCaptionContainer"] {
-    color: #f8fafc !important;
+[data-testid="stSidebar"] div,
+[data-testid="stSidebar"] small {
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    opacity: 1 !important;
 }
 
-[data-testid="stSidebar"] .stTextInput input,
-[data-testid="stSidebar"] .stNumberInput input,
-[data-testid="stSidebar"] textarea {
-    color: #0f172a !important;
+/* Sidebar section title */
+[data-testid="stSidebar"] .stMarkdown {
+    color: #ffffff !important;
+}
+
+/* Text input */
+[data-testid="stSidebar"] .stTextInput input {
     background: #ffffff !important;
-    border-radius: 12px !important;
-}
-
-[data-testid="stSidebar"] .stFileUploader {
-    background: rgba(255,255,255,0.06);
-    border-radius: 16px;
-    padding: 8px;
-}
-
-[data-testid="stSidebar"] .stFileUploader section {
-    background: rgba(255,255,255,0.08) !important;
-    border: 1px dashed rgba(255,255,255,0.18) !important;
-    border-radius: 16px !important;
-}
-
-[data-testid="stSidebar"] .stFileUploader section * {
-    color: #f8fafc !important;
-}
-
-[data-testid="stSidebar"] .stButton button,
-[data-testid="stSidebar"] .stDownloadButton button {
-    background: #ffffff !important;
-    color: #0f172a !important;
-    border: none !important;
+    color: #020617 !important;
+    border: 2px solid #dbeafe !important;
     border-radius: 14px !important;
-    font-weight: 900 !important;
     font-size: 16px !important;
-    padding: 0.70rem 1rem !important;
-    box-shadow: 0 10px 20px rgba(15,23,42,0.15);
+    font-weight: 900 !important;
+    padding: 12px 14px !important;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.18) !important;
 }
 
-[data-testid="stSidebar"] .stButton button:hover,
-[data-testid="stSidebar"] .stDownloadButton button:hover {
-    background: #e2e8f0 !important;
+[data-testid="stSidebar"] .stTextInput input:focus {
+    border-color: #60a5fa !important;
+    box-shadow: 0 0 0 3px rgba(96,165,250,0.35) !important;
+}
+
+/* File uploader main container */
+[data-testid="stSidebar"] .stFileUploader {
+    background: rgba(255,255,255,0.10) !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+    border-radius: 18px !important;
+    padding: 12px !important;
+}
+
+/* File uploader dropzone */
+[data-testid="stSidebar"] .stFileUploader section {
+    background: #ffffff !important;
+    border: 2px dashed #93c5fd !important;
+    border-radius: 18px !important;
+    padding: 16px !important;
+}
+
+/* File uploader all text inside */
+[data-testid="stSidebar"] .stFileUploader section * {
     color: #0f172a !important;
+    opacity: 1 !important;
+    font-weight: 900 !important;
 }
 
-[data-testid="stSidebar"] .stButton button:disabled {
-    background: rgba(255,255,255,0.35) !important;
-    color: rgba(15,23,42,0.45) !important;
+/* File uploader small text */
+[data-testid="stSidebar"] .stFileUploader small {
+    color: #334155 !important;
+    opacity: 1 !important;
+    font-weight: 800 !important;
 }
 
-[data-testid="stSidebar"] code {
+/* Uploaded file card */
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 14px !important;
+    padding: 10px !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] * {
     color: #0f172a !important;
+    opacity: 1 !important;
+    font-weight: 900 !important;
+}
+
+/* Buttons */
+[data-testid="stSidebar"] .stButton button {
+    background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%) !important;
+    color: #0f172a !important;
+    border: 1px solid #bfdbfe !important;
+    border-radius: 16px !important;
+    font-weight: 900 !important;
+    font-size: 17px !important;
+    padding: 0.85rem 1rem !important;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.18) !important;
+    opacity: 1 !important;
+}
+
+/* Button text */
+[data-testid="stSidebar"] .stButton button * {
+    color: #0f172a !important;
+    opacity: 1 !important;
+    font-weight: 900 !important;
+}
+
+[data-testid="stSidebar"] .stButton button:hover {
+    background: #ffffff !important;
+    color: #020617 !important;
+    border-color: #60a5fa !important;
+    transform: translateY(-1px);
+}
+
+/* Disabled button */
+[data-testid="stSidebar"] .stButton button:disabled,
+[data-testid="stSidebar"] .stButton button[disabled] {
     background: #e2e8f0 !important;
-    border-radius: 10px;
+    color: #475569 !important;
+    border: 1px solid #cbd5e1 !important;
+    opacity: 1 !important;
+    box-shadow: none !important;
+}
+
+[data-testid="stSidebar"] .stButton button:disabled *,
+[data-testid="stSidebar"] .stButton button[disabled] * {
+    color: #475569 !important;
+    opacity: 1 !important;
+}
+
+/* Help icon */
+[data-testid="stSidebar"] svg {
+    color: #ffffff !important;
+    fill: currentColor !important;
+}
+
+/* Horizontal line */
+[data-testid="stSidebar"] hr {
+    border-color: rgba(255,255,255,0.14) !important;
 }
 
 /* =========================
@@ -617,7 +736,7 @@ clean_rows = str(source_info.get("total_rows_clean", "-"))
 
 st.markdown(
     f"""
-    <div style="margin-top:16px; margin-bottom:12px;">
+    <div style="margin-top:8px; margin-bottom:12px;">
         <span class="info-pill">📄 File: {source_file}</span>
         <span class="info-pill">📦 Raw Rows: {raw_rows}</span>
         <span class="info-pill">✅ Clean Trades: {clean_rows}</span>
@@ -673,10 +792,10 @@ with k8:
 # =========================
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📌 Executive Overview",
-    "🧠 Diagnosis & Behavior",
-    "📈 Visual Analysis",
-    "📋 Data Tables"
+    "📌 النظرة التنفيذية",
+    "🧠 التشخيص والسلوك",
+    "📈 التحليل البصري",
+    "📋 الجداول"
 ])
 
 
@@ -1058,7 +1177,10 @@ with tab4:
             st.dataframe(by_side_df, use_container_width=True)
 
 
+# =========================
 # Downloads
+# =========================
+
 st.write("")
 st.markdown('<div class="section-title">تنزيل التقارير</div>', unsafe_allow_html=True)
 
