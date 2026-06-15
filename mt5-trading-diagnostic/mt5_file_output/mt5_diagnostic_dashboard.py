@@ -1,14 +1,14 @@
-# mt5_diagnostic_dashboard.py
+# mt5_diagnostic_dashboard_v4_1_file_upload.py
 # ------------------------------------------------------------
-# MT5 Diagnostic Dashboard - Final File Upload Premium UI
+# MT5 Diagnostic Dashboard - V4.1 File Upload Premium UI
 #
 # هذه النسخة لا تحتاج منصة MT5 ولا حساب العميل.
 # العميل يرفع ملف CSV / HTML / XLS / XLSX
-# والداشبورد يحلل الملف ويعرض التشخيص والرسوم والاستنتاجات.
+# والداشبورد يحلل الملف ويعرض التشخيص والرسوم.
 #
 # التشغيل:
 # python -m pip install -r requirements.txt
-# streamlit run mt5_diagnostic_dashboard.py
+# streamlit run mt5_diagnostic_dashboard_v4_1_file_upload.py
 # ------------------------------------------------------------
 
 import tempfile
@@ -34,6 +34,10 @@ st.set_page_config(
 )
 
 
+# =========================
+# CSS
+# =========================
+
 CUSTOM_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Cairo:wght@400;600;700;800;900&display=swap');
@@ -50,11 +54,6 @@ CUSTOM_CSS = """
 
 html, body, [class*="css"]  {
     font-family: 'Tajawal', 'Cairo', Tahoma, Arial, sans-serif !important;
-}
-
-html, body, .stApp, .block-container, p, div, span, label, h1, h2, h3, h4, h5, h6 {
-    direction: ltr !important;
-    text-align: left !important;
 }
 
 body {
@@ -74,13 +73,10 @@ body {
     max-width: 1520px;
 }
 
-/* Hide Streamlit default UI - keep header visible for sidebar control */
+/* Hide Streamlit visual noise */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-header {visibility: visible !important;}
-[data-testid="stHeader"] {
-    background: transparent !important;
-}
+header {visibility: hidden;}
 
 /* =========================
    Hero
@@ -102,7 +98,6 @@ header {visibility: visible !important;}
     line-height: 1.15;
     text-align: left;
     letter-spacing: -0.4px;
-    color: #ffffff;
 }
 
 .hero-subtitle {
@@ -306,82 +301,6 @@ header {visibility: visible !important;}
 }
 
 /* =========================
-   Insight Cards
-   ========================= */
-.insight-card {
-    background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
-    border: 1px solid #bfdbfe;
-    border-left: 6px solid #1d4ed8;
-    border-radius: 18px;
-    padding: 16px 18px;
-    margin-top: 10px;
-    margin-bottom: 18px;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.055);
-}
-
-.insight-title {
-    color: #0f172a;
-    font-size: 18px;
-    font-weight: 900;
-    margin-bottom: 6px;
-    text-align: left;
-}
-
-.insight-text {
-    color: #334155;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.8;
-    text-align: left;
-}
-
-.insight-warning {
-    background: linear-gradient(135deg, #fff7ed 0%, #fff1f2 100%);
-    border: 1px solid #fed7aa;
-    border-left: 6px solid #f97316;
-}
-
-.insight-good {
-    background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
-    border: 1px solid #bbf7d0;
-    border-left: 6px solid #16a34a;
-}
-
-.insight-danger {
-    background: linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%);
-    border: 1px solid #fecaca;
-    border-left: 6px solid #dc2626;
-}
-
-.table-insight-card {
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-    border: 1px solid #cbd5e1;
-    border-left: 6px solid #0f172a;
-    border-radius: 18px;
-    padding: 16px 18px;
-    margin: 12px 0 18px 0;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.055);
-}
-
-.table-insight-title {
-    color: #0f172a;
-    font-size: 18px;
-    font-weight: 900;
-    margin-bottom: 6px;
-    direction: ltr !important;
-    text-align: left !important;
-}
-
-.table-insight-text {
-    color: #334155;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.8;
-    direction: ltr !important;
-    text-align: left !important;
-}
-
-/* =========================
    Tabs
    ========================= */
 .stTabs [data-baseweb="tab-list"] {
@@ -406,121 +325,81 @@ header {visibility: visible !important;}
 }
 
 /* =========================
-   Sidebar - Clean Readability Fix
+   Sidebar
    ========================= */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #07111f 0%, #0f1b33 45%, #111c3a 100%) !important;
-    border-right: 1px solid rgba(255,255,255,0.14) !important;
+    background: linear-gradient(180deg, #0f172a 0%, #172554 100%);
+    border-right: 1px solid rgba(255,255,255,0.08);
 }
 
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] label {
-    color: #ffffff !important;
-    opacity: 1 !important;
-    font-weight: 900 !important;
-}
-
-[data-testid="stSidebar"] .stMarkdown p,
-[data-testid="stSidebar"] .stMarkdown span,
-[data-testid="stSidebar"] .stMarkdown div {
-    color: #e2e8f0 !important;
-    opacity: 1 !important;
-    font-weight: 700 !important;
-}
-
-[data-testid="stSidebar"] .stTextInput input {
-    background: #ffffff !important;
-    color: #020617 !important;
-    border: 2px solid #93c5fd !important;
-    border-radius: 14px !important;
-    font-size: 15px !important;
-    font-weight: 900 !important;
-    padding: 12px 14px !important;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.18) !important;
-}
-
-[data-testid="stSidebar"] .stFileUploader {
-    background: rgba(255,255,255,0.08) !important;
-    border: 1px solid rgba(255,255,255,0.16) !important;
-    border-radius: 18px !important;
-    padding: 12px !important;
-}
-
-[data-testid="stSidebar"] .stFileUploader section {
-    background: #ffffff !important;
-    border: 2px dashed #60a5fa !important;
-    border-radius: 18px !important;
-    padding: 16px !important;
-}
-
-[data-testid="stSidebar"] .stFileUploader section span,
-[data-testid="stSidebar"] .stFileUploader section div,
-[data-testid="stSidebar"] .stFileUploader section small,
-[data-testid="stSidebar"] .stFileUploader section p,
-[data-testid="stSidebar"] .stFileUploader section label {
-    color: #0f172a !important;
-    opacity: 1 !important;
-    font-weight: 900 !important;
-}
-
-[data-testid="stSidebar"] .stFileUploader small {
-    color: #334155 !important;
-    opacity: 1 !important;
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stMarkdown,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] div[data-testid="stCaptionContainer"] {
+    color: #f8fafc !important;
     font-weight: 800 !important;
 }
 
-[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] {
-    background: #f8fafc !important;
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 14px !important;
-    padding: 10px !important;
-}
-
-[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] span,
-[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] div,
-[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] small {
+[data-testid="stSidebar"] .stTextInput input,
+[data-testid="stSidebar"] .stNumberInput input,
+[data-testid="stSidebar"] textarea {
     color: #0f172a !important;
-    opacity: 1 !important;
-    font-weight: 900 !important;
+    background: #ffffff !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
 }
 
-[data-testid="stSidebar"] .stButton button {
-    background: linear-gradient(135deg, #ffffff 0%, #dbeafe 100%) !important;
-    color: #020617 !important;
-    border: 1px solid #93c5fd !important;
+[data-testid="stSidebar"] .stFileUploader {
+    background: rgba(255,255,255,0.07);
+    border-radius: 16px;
+    padding: 8px;
+}
+
+[data-testid="stSidebar"] .stFileUploader section {
+    background: rgba(255,255,255,0.09) !important;
+    border: 1px dashed rgba(255,255,255,0.20) !important;
     border-radius: 16px !important;
+}
+
+[data-testid="stSidebar"] .stFileUploader section * {
+    color: #f8fafc !important;
+}
+
+[data-testid="stSidebar"] .stButton button,
+[data-testid="stSidebar"] .stDownloadButton button {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: none !important;
+    border-radius: 14px !important;
     font-weight: 900 !important;
     font-size: 16px !important;
-    padding: 0.85rem 1rem !important;
-    box-shadow: 0 12px 26px rgba(0,0,0,0.18) !important;
-    opacity: 1 !important;
+    padding: 0.70rem 1rem !important;
+    box-shadow: 0 10px 20px rgba(15,23,42,0.15);
 }
 
-[data-testid="stSidebar"] .stButton button * {
-    color: #020617 !important;
-    opacity: 1 !important;
-    font-weight: 900 !important;
-}
-
-[data-testid="stSidebar"] .stButton button:disabled,
-[data-testid="stSidebar"] .stButton button[disabled] {
+[data-testid="stSidebar"] .stButton button:hover,
+[data-testid="stSidebar"] .stDownloadButton button:hover {
     background: #e2e8f0 !important;
-    color: #334155 !important;
-    border: 1px solid #cbd5e1 !important;
-    opacity: 1 !important;
-    box-shadow: none !important;
+    color: #0f172a !important;
 }
 
-[data-testid="stSidebar"] .stButton button:disabled *,
-[data-testid="stSidebar"] .stButton button[disabled] * {
-    color: #334155 !important;
-    opacity: 1 !important;
+[data-testid="stSidebar"] .stButton button:disabled {
+    background: rgba(255,255,255,0.35) !important;
+    color: rgba(15,23,42,0.45) !important;
+}
+
+[data-testid="stSidebar"] code {
+    color: #0f172a !important;
+    background: #e2e8f0 !important;
+    border-radius: 10px;
 }
 
 /* =========================
-   General Buttons / Tables
+   General Buttons
    ========================= */
 div[data-testid="stButton"] button,
 div[data-testid="stDownloadButton"] button {
@@ -529,11 +408,9 @@ div[data-testid="stDownloadButton"] button {
     font-size: 16px;
 }
 
-[data-testid="stDataFrame"] * {
-    direction: ltr !important;
-    text-align: left !important;
-}
-
+/* =========================
+   DataFrames / Text
+   ========================= */
 .stDataFrame, .stTable {
     font-size: 15px !important;
 }
@@ -542,6 +419,50 @@ hr {
     margin-top: 8px;
     margin-bottom: 18px;
 }
+
+/* =========================
+   Insight Cards
+   ========================= */
+.insight-card {
+    background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+    border: 1px solid #bfdbfe;
+    border-left: 6px solid #1d4ed8;
+    border-radius: 18px;
+    padding: 16px 18px;
+    margin-top: 10px;
+    margin-bottom: 18px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.055);
+}
+.insight-title {
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 900;
+    margin-bottom: 6px;
+    text-align: left;
+}
+.insight-text {
+    color: #334155;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.8;
+    text-align: left;
+}
+.insight-warning {
+    background: linear-gradient(135deg, #fff7ed 0%, #fff1f2 100%);
+    border: 1px solid #fed7aa;
+    border-left: 6px solid #f97316;
+}
+.insight-good {
+    background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+    border: 1px solid #bbf7d0;
+    border-left: 6px solid #16a34a;
+}
+.insight-danger {
+    background: linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%);
+    border: 1px solid #fecaca;
+    border-left: 6px solid #dc2626;
+}
+
 </style>
 """
 
@@ -618,13 +539,6 @@ def format_number(x):
         return str(x)
 
 
-def money_value(x):
-    try:
-        return f"${float(x):,.2f}"
-    except Exception:
-        return str(x)
-
-
 def severity_badge(sev: str):
     sev_text = str(sev)
     sev_lower = sev_text.lower()
@@ -642,38 +556,6 @@ def show_kpi_card(label, value, note=""):
             <div class="kpi-label">{label}</div>
             <div class="kpi-value">{value}</div>
             <div class="kpi-note">{note}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-def insight_card(title, text, tone="normal"):
-    css_class = "insight-card"
-    if tone == "warning":
-        css_class += " insight-warning"
-    elif tone == "good":
-        css_class += " insight-good"
-    elif tone == "danger":
-        css_class += " insight-danger"
-
-    st.markdown(
-        f"""
-        <div class="{css_class}">
-            <div class="insight-title">{title}</div>
-            <div class="insight-text">{text}</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-def table_insight_card(title, text):
-    st.markdown(
-        f"""
-        <div class="table-insight-card">
-            <div class="table-insight-title">{title}</div>
-            <div class="table-insight-text">{text}</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -727,9 +609,32 @@ def make_plot_layout(fig, title):
     return fig
 
 
-# =========================
-# Insight Generators
-# =========================
+def insight_card(title, text, tone="normal"):
+    css_class = "insight-card"
+    if tone == "warning":
+        css_class += " insight-warning"
+    elif tone == "good":
+        css_class += " insight-good"
+    elif tone == "danger":
+        css_class += " insight-danger"
+
+    st.markdown(
+        f"""
+        <div class="{css_class}">
+            <div class="insight-title">{title}</div>
+            <div class="insight-text">{text}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def money_value(x):
+    try:
+        return f"${float(x):,.2f}"
+    except Exception:
+        return str(x)
+
 
 def generate_equity_insight(df):
     if df.empty or "equity_curve" not in df.columns:
@@ -865,160 +770,6 @@ def generate_side_insight(by_side_df):
     return text, tone
 
 
-def generate_summary_table_insight(summary_df):
-    if summary_df.empty:
-        return "لا توجد بيانات كافية لاستخراج استنتاج من جدول الملخص."
-
-    total_trades = get_metric(summary_df, "total_trades", 0)
-    net_profit = get_metric(summary_df, "net_profit", 0)
-    profit_factor = get_metric(summary_df, "profit_factor", 0)
-    win_rate = get_metric(summary_df, "win_rate", 0)
-    expectancy = get_metric(summary_df, "expectancy", 0)
-    max_drawdown = get_metric(summary_df, "max_drawdown", 0)
-
-    net_profit_f = safe_float(net_profit, 0)
-    expectancy_f = safe_float(expectancy, 0)
-
-    if net_profit_f > 0 and expectancy_f > 0:
-        direction = "الجدول يشير إلى أن الحساب يملك نتيجة إيجابية ومتوسط عائد إيجابي لكل صفقة."
-    elif net_profit_f < 0 and expectancy_f < 0:
-        direction = "الجدول يشير إلى أن الحساب يخسر إجمالياً، ومتوسط الصفقة يميل ضد المتداول."
-    else:
-        direction = "الجدول يعطي قراءة مختلطة؛ بعض المؤشرات إيجابية وبعضها يحتاج مراجعة."
-
-    return (
-        f"{direction} عدد الصفقات المحللة هو {total_trades}، صافي النتيجة {money_value(net_profit)}، "
-        f"نسبة الربح {win_rate}%، و Profit Factor = {profit_factor}. "
-        f"أهم قيمة عملية هنا: لا تنظر إلى صافي الربح وحده؛ قارنه مع Expectancy = {money_value(expectancy)} "
-        f"ومع Max Drawdown = {money_value(max_drawdown)} لمعرفة هل الأداء مستقر أم عالي التذبذب."
-    )
-
-
-def generate_scores_table_insight(scores_df):
-    if scores_df.empty or "score_name" not in scores_df.columns or "score" not in scores_df.columns:
-        return "لا توجد بيانات كافية لاستخراج استنتاج من جدول الدرجات."
-
-    score_map = dict(zip(scores_df["score_name"], scores_df["score"]))
-
-    def fmt(v):
-        try:
-            return f"{int(float(v))}/100"
-        except Exception:
-            return str(v)
-
-    lowest_name = None
-    lowest_score = None
-
-    for name, score in score_map.items():
-        try:
-            s = float(score)
-            if lowest_score is None or s < lowest_score:
-                lowest_score = s
-                lowest_name = name
-        except Exception:
-            pass
-
-    return (
-        f"الدرجات تحول التقرير من أرقام إلى تشخيص. التقييم العام هو {fmt(score_map.get('Overall Trading Health Score'))}، "
-        f"الانضباط {fmt(score_map.get('Discipline Score'))}، سلوك المخاطرة {fmt(score_map.get('Risk Behavior Score'))}، "
-        f"جودة الأداء {fmt(score_map.get('Performance Quality Score'))}، وثقة البيانات {fmt(score_map.get('Data Confidence Score'))}. "
-        f"أضعف جانب حالياً هو {lowest_name} بدرجة {fmt(lowest_score)}؛ وهذا هو المكان الأفضل للبدء في خطة التحسين."
-    )
-
-
-def generate_flags_table_insight(flags_df):
-    if flags_df.empty:
-        return "جدول الأخطاء السلوكية لا يظهر Flags واضحة حالياً. هذا لا يعني أن الحساب مثالي، بل يعني أن القواعد الحالية لم تلتقط نمطاً خطيراً واضحاً."
-
-    total_flags = len(flags_df)
-    high_count = 0
-    medium_count = 0
-
-    if "severity" in flags_df.columns:
-        sev = flags_df["severity"].astype(str).str.lower()
-        high_count = int((sev.isin(["high", "critical"])).sum())
-        medium_count = int((sev == "medium").sum())
-
-    common_type = "-"
-    if "type" in flags_df.columns and not flags_df["type"].empty:
-        common_type = flags_df["type"].value_counts().index[0]
-
-    return (
-        f"جدول الأخطاء السلوكية يحتوي على {total_flags} إشارة، منها {high_count} عالية الخطورة و {medium_count} متوسطة. "
-        f"أكثر نمط تكرر هو {common_type}. القيمة العملية: هذا الجدول يكشف سلوك المتداول تحت الضغط، "
-        "خصوصاً بعد الخسارة أو في أيام كثرة التداول، وهو غالباً أهم من معرفة الربح والخسارة فقط."
-    )
-
-
-def generate_trades_table_insight(trades_df):
-    if trades_df.empty:
-        return "لا توجد صفقات كافية داخل جدول الصفقات لاستخراج استنتاج."
-
-    total = len(trades_df)
-    text_parts = [f"جدول الصفقات يحتوي على {total} صفقة قابلة للمراجعة."]
-
-    if "net_profit" in trades_df.columns:
-        best = trades_df.sort_values("net_profit", ascending=False).iloc[0]
-        worst = trades_df.sort_values("net_profit", ascending=True).iloc[0]
-        text_parts.append(
-            f"أفضل صفقة في الجدول حققت {money_value(best.get('net_profit', 0))}، وأسوأ صفقة حققت {money_value(worst.get('net_profit', 0))}."
-        )
-
-    if "symbol" in trades_df.columns and "net_profit" in trades_df.columns:
-        worst_symbol = trades_df.groupby("symbol")["net_profit"].sum().sort_values().index[0]
-        text_parts.append(
-            f"أكثر رمز يحتاج مراجعة من داخل جدول الصفقات هو {worst_symbol} لأنه صاحب أضعف صافي نتيجة داخل هذه البيانات."
-        )
-
-    text_parts.append(
-        "القيمة العملية: هذا الجدول هو مكان التحقيق التفصيلي؛ بعد معرفة المشكلة من الرسوم والدرجات، نعود للصفقات الفردية لمعرفة أين تكرر الخطأ."
-    )
-
-    return " ".join(text_parts)
-
-
-def generate_insights_tables_insight(by_symbol_df, by_hour_df, by_weekday_df, by_side_df):
-    parts = []
-
-    if not by_symbol_df.empty and "symbol" in by_symbol_df.columns and "net_profit" in by_symbol_df.columns:
-        best_symbol = by_symbol_df.sort_values("net_profit", ascending=False).iloc[0]
-        worst_symbol = by_symbol_df.sort_values("net_profit", ascending=True).iloc[0]
-        parts.append(
-            f"حسب الرموز: الأفضل {best_symbol['symbol']} بصافي {money_value(best_symbol['net_profit'])}، "
-            f"والأضعف {worst_symbol['symbol']} بصافي {money_value(worst_symbol['net_profit'])}."
-        )
-
-    if not by_hour_df.empty and "hour" in by_hour_df.columns and "net_profit" in by_hour_df.columns:
-        best_hour = by_hour_df.sort_values("net_profit", ascending=False).iloc[0]
-        worst_hour = by_hour_df.sort_values("net_profit", ascending=True).iloc[0]
-        parts.append(
-            f"حسب الساعة: الأفضل {int(best_hour['hour'])}:00، والأضعف {int(worst_hour['hour'])}:00."
-        )
-
-    if not by_weekday_df.empty and "weekday" in by_weekday_df.columns and "net_profit" in by_weekday_df.columns:
-        best_day = by_weekday_df.sort_values("net_profit", ascending=False).iloc[0]
-        worst_day = by_weekday_df.sort_values("net_profit", ascending=True).iloc[0]
-        parts.append(
-            f"حسب الأيام: الأفضل {best_day['weekday']}، والأضعف {worst_day['weekday']}."
-        )
-
-    if not by_side_df.empty and "net_profit" in by_side_df.columns:
-        side_col = by_side_df.columns[0]
-        best_side = by_side_df.sort_values("net_profit", ascending=False).iloc[0]
-        worst_side = by_side_df.sort_values("net_profit", ascending=True).iloc[0]
-        parts.append(
-            f"حسب اتجاه الصفقة: الأفضل {best_side[side_col]}، والأضعف {worst_side[side_col]}."
-        )
-
-    if not parts:
-        return "لا توجد جداول Insights كافية لاستخراج استنتاج."
-
-    return (
-        " ".join(parts)
-        + " القيمة العملية: هذه الجداول تحدد أين يجب أن يركز المتداول في التحسين: الرمز، الوقت، اليوم، أو اتجاه الصفقة."
-    )
-
-
 # =========================
 # Header
 # =========================
@@ -1074,7 +825,6 @@ if uploaded_file is not None and analyze_clicked:
         except Exception as e:
             st.error("فشل تحليل الملف ❌")
             st.exception(e)
-
 
 data_dir = Path(output_dir)
 excel_path = find_excel(data_dir)
@@ -1181,10 +931,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 
-# =========================
-# Tab 1
-# =========================
-
 with tab1:
     st.markdown('<div class="section-title">النظرة التنفيذية</div>', unsafe_allow_html=True)
 
@@ -1193,7 +939,6 @@ with tab1:
     with left_col:
         if not analysis_df.empty and "equity_curve" in analysis_df.columns:
             x_col = "trade_number" if "trade_number" in analysis_df.columns else analysis_df.index
-
             fig_eq = go.Figure()
             fig_eq.add_trace(go.Scatter(
                 x=analysis_df[x_col],
@@ -1206,11 +951,9 @@ with tab1:
                 fillcolor="rgba(29,78,216,0.12)",
                 hovertemplate="Trade %{x}<br>Cumulative P/L: %{y:.2f}<extra></extra>"
             ))
-
             fig_eq = make_plot_layout(fig_eq, "منحنى الأداء التراكمي")
             fig_eq.update_layout(height=430)
             st.plotly_chart(fig_eq, use_container_width=True)
-
             equity_text, equity_tone = generate_equity_insight(analysis_df)
             insight_card("ماذا يعني منحنى الأداء؟", equity_text, equity_tone)
         else:
@@ -1232,17 +975,9 @@ with tab1:
             values="count",
             hole=0.62,
             color="result",
-            color_discrete_map={
-                "Wins": "#10b981",
-                "Losses": "#ef4444",
-                "Breakeven": "#f59e0b"
-            }
+            color_discrete_map={"Wins": "#10b981", "Losses": "#ef4444", "Breakeven": "#f59e0b"}
         )
-        fig_pie.update_traces(
-            textposition="inside",
-            textinfo="percent+label",
-            marker=dict(line=dict(color="white", width=3))
-        )
+        fig_pie.update_traces(textposition="inside", textinfo="percent+label", marker=dict(line=dict(color="white", width=3)))
         fig_pie.update_layout(
             title="توزيع نتائج الصفقات",
             height=430,
@@ -1284,10 +1019,6 @@ with tab1:
         unsafe_allow_html=True
     )
 
-
-# =========================
-# Tab 2
-# =========================
 
 with tab2:
     st.markdown('<div class="section-title">التشخيص والسلوك</div>', unsafe_allow_html=True)
@@ -1424,10 +1155,6 @@ with tab2:
         st.info("لا توجد خطة تعديل متاحة حالياً.")
 
 
-# =========================
-# Tab 3
-# =========================
-
 with tab3:
     st.markdown('<div class="section-title">التحليل البصري</div>', unsafe_allow_html=True)
 
@@ -1449,7 +1176,6 @@ with tab3:
             fig_symbol = make_plot_layout(fig_symbol, "صافي الربح حسب الرمز")
             fig_symbol.update_layout(height=430, coloraxis_showscale=False)
             st.plotly_chart(fig_symbol, use_container_width=True)
-
             symbol_text, symbol_tone = generate_symbol_insight(by_symbol_df)
             insight_card("ماذا يخبرنا تحليل الرموز؟", symbol_text, symbol_tone)
         else:
@@ -1465,11 +1191,7 @@ with tab3:
                 name="Net Profit",
                 marker=dict(
                     color=plot_df["net_profit"],
-                    colorscale=[
-                        [0.0, "#ef4444"],
-                        [0.5, "#f59e0b"],
-                        [1.0, "#10b981"]
-                    ],
+                    colorscale=[[0.0, "#ef4444"], [0.5, "#f59e0b"], [1.0, "#10b981"]],
                     showscale=False
                 ),
                 text=plot_df["net_profit"],
@@ -1479,7 +1201,6 @@ with tab3:
             fig_hour = make_plot_layout(fig_hour, "صافي الربح حسب الساعة")
             fig_hour.update_layout(height=430)
             st.plotly_chart(fig_hour, use_container_width=True)
-
             hour_text, hour_tone = generate_hour_insight(by_hour_df)
             insight_card("ما هي أهم ساعة تداول؟", hour_text, hour_tone)
         else:
@@ -1501,7 +1222,6 @@ with tab3:
             fig_weekday = make_plot_layout(fig_weekday, "صافي الربح حسب اليوم")
             fig_weekday.update_layout(height=430, coloraxis_showscale=False)
             st.plotly_chart(fig_weekday, use_container_width=True)
-
             weekday_text, weekday_tone = generate_weekday_insight(by_weekday_df)
             insight_card("ماذا يخبرنا تحليل أيام التداول؟", weekday_text, weekday_tone)
         else:
@@ -1522,7 +1242,6 @@ with tab3:
             fig_side = make_plot_layout(fig_side, "صافي الربح حسب اتجاه الصفقة")
             fig_side.update_layout(height=430, coloraxis_showscale=False)
             st.plotly_chart(fig_side, use_container_width=True)
-
             side_text, side_tone = generate_side_insight(by_side_df)
             insight_card("ماذا يخبرنا اتجاه الصفقة؟", side_text, side_tone)
         else:
@@ -1565,41 +1284,23 @@ with tab3:
             st.info("تعذر إنشاء الخريطة الحرارية من البيانات الحالية.")
 
 
-# =========================
-# Tab 4
-# =========================
-
 with tab4:
     st.markdown('<div class="section-title">الجداول التفصيلية</div>', unsafe_allow_html=True)
 
-    subtab1, subtab2, subtab3, subtab4 = st.tabs([
-        "Summary",
-        "Scores & Flags",
-        "Trades",
-        "Insights"
-    ])
+    subtab1, subtab2, subtab3, subtab4 = st.tabs(["Summary", "Scores & Flags", "Trades", "Insights"])
 
     with subtab1:
         st.dataframe(summary_df, use_container_width=True)
-        table_insight_card("استنتاج جدول الملخص", generate_summary_table_insight(summary_df))
 
     with subtab2:
         st.markdown("### Scores")
         st.dataframe(scores_df, use_container_width=True)
-        table_insight_card("استنتاج جدول الدرجات", generate_scores_table_insight(scores_df))
-
         st.markdown("### Behavior Flags")
         st.dataframe(flags_df, use_container_width=True)
-        table_insight_card("استنتاج جدول الأخطاء السلوكية", generate_flags_table_insight(flags_df))
 
     with subtab3:
         st.markdown("### Position Summary")
         st.dataframe(position_df, use_container_width=True)
-        table_insight_card(
-            "استنتاج جدول الصفقات",
-            generate_trades_table_insight(position_df if not position_df.empty else trade_deals_df)
-        )
-
         st.markdown("### Trade Deals")
         st.dataframe(trade_deals_df, use_container_width=True)
 
@@ -1607,29 +1308,18 @@ with tab4:
         if not by_symbol_df.empty:
             st.markdown("### by_symbol")
             st.dataframe(by_symbol_df, use_container_width=True)
-
         if not by_hour_df.empty:
             st.markdown("### by_hour")
             st.dataframe(by_hour_df, use_container_width=True)
-
         if not by_weekday_df.empty:
             st.markdown("### by_weekday")
             st.dataframe(by_weekday_df, use_container_width=True)
-
         if not by_side_df.empty:
             st.markdown("### by_side")
             st.dataframe(by_side_df, use_container_width=True)
 
-        table_insight_card(
-            "استنتاج جداول التحليل التفصيلي",
-            generate_insights_tables_insight(by_symbol_df, by_hour_df, by_weekday_df, by_side_df)
-        )
 
-
-# =========================
 # Downloads
-# =========================
-
 st.write("")
 st.markdown('<div class="section-title">تنزيل التقارير</div>', unsafe_allow_html=True)
 
