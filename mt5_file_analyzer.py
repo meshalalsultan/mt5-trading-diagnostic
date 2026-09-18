@@ -238,14 +238,20 @@ def read_mt5_file(input_file: str | Path) -> pd.DataFrame:
 
 COLUMN_ALIASES = {
     "time": [
-        "Time", "Open Time", "Close Time", "Date", "Datetime", "Date Time",
-        "Time Open", "OpenTime", "CloseTime"
+        "Time", "Open Time", "Date", "Datetime", "Date Time",
+        "Time Open", "OpenTime"
+    ],
+    "close_time": [
+        "Close Time", "CloseTime", "Time Close", "Exit Time"
     ],
     "symbol": [
         "Symbol", "Item", "Instrument", "Market", "Pair"
     ],
     "ticket": [
-        "Ticket", "Deal", "Order", "Position", "ID", "Order ID", "Deal ID"
+        "Ticket", "Deal", "Order", "ID", "Order ID", "Deal ID"
+    ],
+    "position_id": [
+        "Position", "Position ID", "PositionID", "Position Id"
     ],
     "type": [
         "Type", "Action", "Side", "Operation", "Direction"
@@ -332,6 +338,11 @@ def prepare_trades(raw_df: pd.DataFrame) -> pd.DataFrame:
     else:
         df["time"] = pd.NaT
 
+    if "close_time" in df.columns:
+        df["close_time"] = parse_datetime_series(df["close_time"])
+    else:
+        df["close_time"] = pd.NaT
+
     # Symbol
     if "symbol" not in df.columns:
         df["symbol"] = ""
@@ -400,17 +411,113 @@ def prepare_trades(raw_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def extract_initial_balance(raw_df: pd.DataFrame) -> float:
+    """Return explicit starting deposits/balance operations when present.
+
+    Credit and bonus rows are intentionally excluded because they are not cash
+    equity. The value is used only to express drawdown as a percentage; it is
+    not mixed into trading P/L.
+    """
+    df = normalize_columns(raw_df.dropna(how="all").copy())
+    if "type" not in df.columns or "profit" not in df.columns:
+        return 0.0
+
+    operation = df["type"].astype(str).str.strip().str.lower()
+    funding_mask = operation.str.contains(r"\bbalance\b|\bdeposit\b", regex=True, na=False)
+    if not funding_mask.any():
+        return 0.0
+
+    values = df.loc[funding_mask, "profit"].apply(parse_number).dropna()
+    positive_values = values[values > 0]
+    return float(positive_values.sum()) if not positive_values.empty else 0.0
+
+
+def build_position_summary(trade_deals_df: pd.DataFrame) -> pd.DataFrame:
+    """Consolidate deal-level MT5 exports into closed-position rows when possible.
+
+    Many broker exports already contain one row per closed trade. Those files
+    are returned unchanged. A real Position/Position ID column is the signal
+    that several deal rows may belong to one position.
+    """
+    if trade_deals_df.empty or "position_id" not in trade_deals_df.columns:
+        return trade_deals_df.copy()
+
+    df = trade_deals_df.copy()
+    position_key = df["position_id"].astype(str).str.strip()
+    usable = position_key.ne("") & position_key.ne("nan") & position_key.ne("0")
+    if not usable.any() or not position_key[usable].duplicated().any():
+        return df
+
+    def first_nonempty(series, default=""):
+        values = series.dropna()
+        values = values[values.astype(str).str.strip().ne("")]
+        return values.iloc[0] if not values.empty else default
+
+    grouped_rows = []
+    for position_id, group in df[usable].groupby("position_id", sort=False):
+        group = group.sort_values("time", na_position="last")
+        open_time = group["time"].min()
+        explicit_close = group["close_time"].dropna() if "close_time" in group.columns else pd.Series(dtype="datetime64[ns]")
+        close_time = explicit_close.max() if not explicit_close.empty else group["time"].max()
+
+        grouped_rows.append({
+            "position_id": position_id,
+            "ticket": first_nonempty(group["ticket"]) if "ticket" in group.columns else "",
+            "time": open_time,
+            "close_time": close_time,
+            "symbol": first_nonempty(group["symbol"]),
+            "type": first_nonempty(group["type"]),
+            "side": first_nonempty(group["side"]),
+            "volume": float(group["volume"].abs().max()),
+            "price": float(group["price"].replace(0, np.nan).dropna().iloc[0]) if group["price"].replace(0, np.nan).notna().any() else 0.0,
+            "close_price": float(group["close_price"].replace(0, np.nan).dropna().iloc[-1]) if group["close_price"].replace(0, np.nan).notna().any() else 0.0,
+            "sl": float(group["sl"].replace(0, np.nan).dropna().iloc[0]) if group["sl"].replace(0, np.nan).notna().any() else 0.0,
+            "tp": float(group["tp"].replace(0, np.nan).dropna().iloc[0]) if group["tp"].replace(0, np.nan).notna().any() else 0.0,
+            "profit": float(group["profit"].sum()),
+            "commission": float(group["commission"].sum()),
+            "swap": float(group["swap"].sum()),
+            "fee": float(group["fee"].sum()),
+            "net_profit": float(group["net_profit"].sum()),
+            "deal_count": int(len(group)),
+        })
+
+    # Preserve rows that had no usable position identifier as standalone trades.
+    if (~usable).any():
+        standalone = df[~usable].copy()
+        standalone["deal_count"] = 1
+        grouped_rows.extend(standalone.to_dict("records"))
+
+    positions = pd.DataFrame(grouped_rows).sort_values("time", na_position="last").reset_index(drop=True)
+    positions["trade_number"] = np.arange(1, len(positions) + 1)
+    positions["date"] = positions["time"].dt.date
+    positions["hour"] = positions["time"].dt.hour
+    positions["weekday"] = positions["time"].dt.day_name()
+    positions["result"] = np.select(
+        [positions["net_profit"] > 0, positions["net_profit"] < 0],
+        ["Win", "Loss"],
+        default="Breakeven",
+    )
+    positions["equity_curve"] = positions["net_profit"].cumsum()
+    return positions
+
+
 # =========================
 # Metrics
 # =========================
 
-def calculate_max_drawdown(equity_series: pd.Series) -> float:
+def calculate_max_drawdown(equity_series: pd.Series, initial_balance: float = 0.0) -> Tuple[float, float]:
     if equity_series.empty:
-        return 0.0
+        return 0.0, 0.0
 
-    running_max = equity_series.cummax()
-    drawdown = equity_series - running_max
-    return float(drawdown.min())
+    base = max(float(initial_balance), 0.0)
+    curve = pd.concat([
+        pd.Series([base], dtype=float),
+        base + pd.to_numeric(equity_series, errors="coerce").fillna(0.0),
+    ], ignore_index=True)
+    running_max = curve.cummax()
+    drawdown = curve - running_max
+    drawdown_pct = (drawdown / running_max.replace(0, np.nan) * 100).fillna(0.0)
+    return float(drawdown.min()), float(drawdown_pct.min())
 
 
 def calculate_max_loss_streak(df: pd.DataFrame) -> int:
@@ -427,7 +534,7 @@ def calculate_max_loss_streak(df: pd.DataFrame) -> int:
     return int(max_streak)
 
 
-def build_summary(df: pd.DataFrame) -> pd.DataFrame:
+def build_summary(df: pd.DataFrame, initial_balance: float = 0.0) -> pd.DataFrame:
     total_trades = len(df)
     wins = int((df["net_profit"] > 0).sum())
     losses = int((df["net_profit"] < 0).sum())
@@ -448,7 +555,9 @@ def build_summary(df: pd.DataFrame) -> pd.DataFrame:
     best_trade = float(df["net_profit"].max()) if total_trades else 0
     worst_trade = float(df["net_profit"].min()) if total_trades else 0
 
-    max_drawdown = calculate_max_drawdown(df["equity_curve"])
+    max_drawdown, max_drawdown_pct = calculate_max_drawdown(
+        df["equity_curve"], initial_balance=initial_balance
+    )
     max_loss_streak = calculate_max_loss_streak(df)
 
     metrics = {
@@ -468,6 +577,7 @@ def build_summary(df: pd.DataFrame) -> pd.DataFrame:
         "best_trade": round(best_trade, 2),
         "worst_trade": round(worst_trade, 2),
         "max_drawdown": round(max_drawdown, 2),
+        "max_drawdown_pct": round(max_drawdown_pct, 2),
         "max_loss_streak": max_loss_streak,
     }
 
@@ -627,11 +737,15 @@ def build_behavior_flags(df: pd.DataFrame, summary_df: pd.DataFrame) -> pd.DataF
             prev = ordered.iloc[i - 1]
             cur = ordered.iloc[i]
 
-            if pd.isna(prev["time"]) or pd.isna(cur["time"]):
+            prev_event_time = prev.get("close_time", pd.NaT)
+            if pd.isna(prev_event_time):
+                prev_event_time = prev["time"]
+
+            if pd.isna(prev_event_time) or pd.isna(cur["time"]):
                 continue
 
             if float(prev["net_profit"]) < 0:
-                diff_minutes = (cur["time"] - prev["time"]).total_seconds() / 60
+                diff_minutes = (cur["time"] - prev_event_time).total_seconds() / 60
                 if 0 <= diff_minutes <= 30:
                     fast_count += 1
                     if len(fast_examples) < 3:
@@ -1402,16 +1516,18 @@ def analyze_mt5_file(input_file: str | Path, output_dir: str | Path = "mt5_file_
 
     raw_df = read_mt5_file(input_file)
     raw_rows = len(raw_df)
+    initial_balance = extract_initial_balance(raw_df)
 
-    trades_df = prepare_trades(raw_df)
-    clean_rows = len(trades_df)
+    trade_deals_df = prepare_trades(raw_df)
+    position_df = build_position_summary(trade_deals_df)
+    clean_rows = len(position_df)
 
-    if trades_df.empty:
+    if position_df.empty:
         raise ValueError("No trade rows found after cleaning the file.")
 
-    summary_df = build_summary(trades_df)
-    aggs = build_aggregations(trades_df)
-    flags_df = build_behavior_flags(trades_df, summary_df)
+    summary_df = build_summary(position_df, initial_balance=initial_balance)
+    aggs = build_aggregations(position_df)
+    flags_df = build_behavior_flags(position_df, summary_df)
     scores_df = calculate_scores(summary_df, flags_df, raw_rows)
     diagnosis_df = build_client_diagnosis(summary_df, flags_df)
     action_plan_df = build_action_plan(flags_df)
@@ -1427,16 +1543,12 @@ def analyze_mt5_file(input_file: str | Path, output_dir: str | Path = "mt5_file_
 
     account_info_df = pd.DataFrame([
         {"field": "source_file", "value": input_file.name},
-        {"field": "source_path", "value": str(input_file)},
         {"field": "total_rows_raw", "value": raw_rows},
         {"field": "total_rows_clean", "value": clean_rows},
+        {"field": "deal_rows_clean", "value": len(trade_deals_df)},
+        {"field": "initial_balance_detected", "value": round(initial_balance, 2)},
         {"field": "generated_by", "value": "MT5 File Analyzer + Smart Solutions Engine"},
     ])
-
-    # Position Summary حاليا نفس الصفقات النظيفة.
-    # لاحقا يمكن تطويرها لتجميع الصفقات المفتوحة/المغلقة حسب ticket.
-    position_df = trades_df.copy()
-    trade_deals_df = trades_df.copy()
 
     excel_path = output_dir / "mt5_file_diagnostic_report_v2.xlsx"
     txt_path = output_dir / "diagnostic_report_ar_v2.txt"

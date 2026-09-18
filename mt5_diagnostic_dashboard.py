@@ -11,6 +11,7 @@
 # streamlit run mt5_diagnostic_dashboard_v4_1_file_upload.py
 # ------------------------------------------------------------
 
+import io
 import tempfile
 from pathlib import Path
 
@@ -23,11 +24,12 @@ from mt5_file_analyzer import analyze_mt5_file
 
 
 APP_DIR = Path(__file__).resolve().parent
-DEFAULT_OUTPUT_DIR = APP_DIR / "mt5_file_output"
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+ALLOWED_SUFFIXES = {".csv", ".txt", ".html", ".htm", ".xlsx", ".xls"}
 
 
 st.set_page_config(
-    page_title="MT5 File Diagnostic Dashboard",
+    page_title="Mask Trader AI | MT5 Diagnostic",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -609,37 +611,6 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # Helpers
 # =========================
 
-@st.cache_data(show_spinner=False)
-def load_excel_sheet(excel_path: str, sheet_name: str) -> pd.DataFrame:
-    p = Path(excel_path)
-    if not p.exists():
-        return pd.DataFrame()
-    try:
-        return pd.read_excel(p, sheet_name=sheet_name)
-    except Exception:
-        return pd.DataFrame()
-
-
-def clear_cache():
-    try:
-        st.cache_data.clear()
-    except Exception:
-        pass
-
-
-def find_excel(data_dir: Path):
-    candidates = [
-        data_dir / "mt5_file_diagnostic_report_v2.xlsx",
-        data_dir / "mt5_direct_diagnostic_report_v2.xlsx",
-        data_dir / "mt5_direct_diagnostic_report.xlsx",
-    ]
-    for c in candidates:
-        if c.exists():
-            return c
-    xlsx_files = list(data_dir.glob("*.xlsx"))
-    return xlsx_files[0] if xlsx_files else None
-
-
 def get_metric(summary_df: pd.DataFrame, key: str, default=None):
     if summary_df.empty:
         return default
@@ -1186,7 +1157,7 @@ def generate_solutions_overview(smart_solutions_df):
 st.markdown(
     """
     <div class="hero-card">
-        <div class="hero-title">📊 MT5 File Diagnostic Dashboard</div>
+        <div class="hero-title">📊 Mask Trader AI — MT5 Diagnostic</div>
         <div class="hero-subtitle">
             ارفع كشف العميل CSV / HTML / Excel، واحصل على تشخيص بصري احترافي بدون الحاجة إلى منصة العميل.
         </div>
@@ -1208,37 +1179,50 @@ with st.sidebar:
         type=["csv", "html", "htm", "xlsx", "xls"],
         help="يدعم CSV / HTML / XLS / XLSX"
     )
-
-    output_dir = st.text_input("مجلد المخرجات", value=str(DEFAULT_OUTPUT_DIR))
-
     analyze_clicked = st.button("🚀 Analyze Uploaded File", use_container_width=True)
 
 
 if uploaded_file is not None and analyze_clicked:
-    out_dir = Path(output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
     suffix = Path(uploaded_file.name).suffix.lower()
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(uploaded_file.getvalue())
-        tmp_path = Path(tmp.name)
+    upload_bytes = uploaded_file.getvalue()
 
-    with st.spinner("جاري تحليل الملف وإنشاء التقرير..."):
-        try:
-            result = analyze_mt5_file(tmp_path, output_dir=out_dir)
-            clear_cache()
-            st.success("تم تحليل الملف بنجاح ✅")
-            st.info(f"تم تحليل {result['clean_rows']} صفقة من أصل {result['raw_rows']} صف خام.")
-            with st.expander("تفاصيل التحليل"):
-                st.json(result)
-        except Exception as e:
-            st.error("فشل تحليل الملف ❌")
-            st.exception(e)
+    if suffix not in ALLOWED_SUFFIXES:
+        st.error("نوع الملف غير مدعوم.")
+    elif len(upload_bytes) > MAX_UPLOAD_BYTES:
+        st.error("حجم الملف يتجاوز الحد المسموح وهو 25MB.")
+    else:
+        with st.spinner("جاري تحليل الملف وإنشاء التقرير..."):
+            try:
+                # Each request lives in an isolated directory that is deleted
+                # automatically after the reports are loaded into memory.
+                with tempfile.TemporaryDirectory(prefix="mask_mt5_") as tmp_dir:
+                    work_dir = Path(tmp_dir)
+                    safe_name = Path(uploaded_file.name).name
+                    input_path = work_dir / safe_name
+                    output_path = work_dir / "output"
+                    input_path.write_bytes(upload_bytes)
 
-data_dir = Path(output_dir)
-excel_path = find_excel(data_dir)
+                    result = analyze_mt5_file(input_path, output_dir=output_path)
+                    excel_bytes = Path(result["excel_report"]).read_bytes()
+                    text_bytes = Path(result["text_report"]).read_bytes()
+                    sheets = pd.read_excel(io.BytesIO(excel_bytes), sheet_name=None)
 
-if excel_path is None:
+                st.session_state["analysis_bundle"] = {
+                    "source_name": safe_name,
+                    "result": result,
+                    "sheets": sheets,
+                    "excel_bytes": excel_bytes,
+                    "text_bytes": text_bytes,
+                }
+                st.success("تم تحليل الملف بنجاح ✅")
+                st.info(f"تم تحليل {result['clean_rows']} صفقة من أصل {result['raw_rows']} صف خام.")
+            except Exception as e:
+                st.session_state.pop("analysis_bundle", None)
+                st.error("فشل تحليل الملف ❌")
+                st.exception(e)
+
+bundle = st.session_state.get("analysis_bundle")
+if not bundle:
     st.info("ارفع ملف CSV أو HTML أو Excel من القائمة الجانبية ثم اضغط Analyze Uploaded File.")
     st.stop()
 
@@ -1247,19 +1231,24 @@ if excel_path is None:
 # Load Data
 # =========================
 
-summary_df = load_excel_sheet(str(excel_path), "Summary")
-scores_df = load_excel_sheet(str(excel_path), "Scores")
-diagnosis_df = load_excel_sheet(str(excel_path), "Client Diagnosis")
-action_plan_df = load_excel_sheet(str(excel_path), "Action Plan")
-flags_df = load_excel_sheet(str(excel_path), "Behavior Flags")
-account_df = load_excel_sheet(str(excel_path), "Account Info")
-position_df = load_excel_sheet(str(excel_path), "Position Summary")
-trade_deals_df = load_excel_sheet(str(excel_path), "Trade Deals")
-by_symbol_df = load_excel_sheet(str(excel_path), "by_symbol")
-by_hour_df = load_excel_sheet(str(excel_path), "by_hour")
-by_weekday_df = load_excel_sheet(str(excel_path), "by_weekday")
-by_side_df = load_excel_sheet(str(excel_path), "by_side")
-smart_solutions_df = load_excel_sheet(str(excel_path), "Smart Solutions")
+sheets = bundle["sheets"]
+
+def sheet(name):
+    return sheets.get(name, pd.DataFrame()).copy()
+
+summary_df = sheet("Summary")
+scores_df = sheet("Scores")
+diagnosis_df = sheet("Client Diagnosis")
+action_plan_df = sheet("Action Plan")
+flags_df = sheet("Behavior Flags")
+account_df = sheet("Account Info")
+position_df = sheet("Position Summary")
+trade_deals_df = sheet("Trade Deals")
+by_symbol_df = sheet("by_symbol")
+by_hour_df = sheet("by_hour")
+by_weekday_df = sheet("by_weekday")
+by_side_df = sheet("by_side")
+smart_solutions_df = sheet("Smart Solutions")
 analysis_df = position_df if not position_df.empty else trade_deals_df
 
 
@@ -1271,9 +1260,9 @@ source_info = {}
 if not account_df.empty and "field" in account_df.columns and "value" in account_df.columns:
     source_info = dict(zip(account_df["field"], account_df["value"]))
 
-source_file = str(source_info.get("source_file", "-"))
-raw_rows = str(source_info.get("total_rows_raw", "-"))
-clean_rows = str(source_info.get("total_rows_clean", "-"))
+source_file = clean_html_value(source_info.get("source_file", "-"))
+raw_rows = clean_html_value(source_info.get("total_rows_raw", "-"))
+clean_rows = clean_html_value(source_info.get("total_rows_clean", "-"))
 
 st.markdown(
     f"""
@@ -1297,6 +1286,7 @@ win_rate = get_metric(summary_df, "win_rate", 0)
 profit_factor = get_metric(summary_df, "profit_factor", 0)
 expectancy = get_metric(summary_df, "expectancy", 0)
 max_drawdown = get_metric(summary_df, "max_drawdown", 0)
+max_drawdown_pct = get_metric(summary_df, "max_drawdown_pct", 0)
 max_loss_streak = get_metric(summary_df, "max_loss_streak", 0)
 avg_win = get_metric(summary_df, "avg_win", 0)
 avg_loss = get_metric(summary_df, "avg_loss", 0)
@@ -1321,7 +1311,7 @@ k5, k6, k7, k8 = st.columns(4)
 with k5:
     show_kpi_card("Expectancy", format_money(expectancy), "متوسط العائد لكل صفقة")
 with k6:
-    show_kpi_card("Max Drawdown", format_money(max_drawdown), "أكبر تراجع تقريبي")
+    show_kpi_card("Max Drawdown", format_money(max_drawdown), f"{max_drawdown_pct}% من أعلى رصيد")
 with k7:
     show_kpi_card("Avg Win", format_money(avg_win), "متوسط الصفقة الرابحة")
 with k8:
@@ -1848,25 +1838,21 @@ st.markdown('<div class="section-title">تنزيل التقارير</div>', unsa
 dl1, dl2 = st.columns(2)
 
 with dl1:
-    with open(excel_path, "rb") as f:
-        st.download_button(
-            label="⬇️ Download Excel Report",
-            data=f,
-            file_name=excel_path.name,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
+    st.download_button(
+        label="⬇️ Download Excel Report",
+        data=bundle["excel_bytes"],
+        file_name="mask_trader_mt5_diagnostic.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
 
 with dl2:
-    txt_path = data_dir / "diagnostic_report_ar_v2.txt"
-    if txt_path.exists():
-        with open(txt_path, "rb") as f:
-            st.download_button(
-                label="⬇️ Download Arabic Text Report",
-                data=f,
-                file_name=txt_path.name,
-                mime="text/plain",
-                use_container_width=True
-            )
+    st.download_button(
+        label="⬇️ Download Arabic Text Report",
+        data=bundle["text_bytes"],
+        file_name="mask_trader_diagnostic_ar.txt",
+        mime="text/plain",
+        use_container_width=True
+    )
 
 st.caption("تحذير: هذا الداشبورد مخصص لتحليل البيانات وليس لتقديم توصيات تداول. التداول يحمل مخاطرة حقيقية والقرار النهائي مسؤولية المتداول.")

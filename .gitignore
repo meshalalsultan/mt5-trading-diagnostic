@@ -1,5 +1,7 @@
 # Python
 __pycache__/
+.pytest_cache/
+.coverage
 *.pyc
 *.pyo
 *.pyd
@@ -16,6 +18,8 @@ env/
 mt5_direct_output/
 mt5_direct_output_v2/
 mt5_diagnostic_output/
+mt5_file_output/
+mask_mt5_*/
 
 # Reports / local generated files
 *.xlsx
