@@ -12,6 +12,7 @@ from mt5_file_analyzer import (
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "mt5_sample_statement_for_analysis.html"
+REALISTIC_DEMO = ROOT / "samples" / "mt5_realistic_deals_demo.csv"
 
 
 def test_sample_statement_generates_complete_report(tmp_path):
@@ -85,3 +86,20 @@ def test_deal_rows_are_consolidated_by_position_id():
     assert positions.iloc[0]["deal_count"] == 2
     assert positions.iloc[0]["net_profit"] == 98
 
+
+def test_realistic_deal_statement_runs_full_pipeline(tmp_path):
+    result = analyze_mt5_file(REALISTIC_DEMO, tmp_path)
+
+    assert result["raw_rows"] == 37
+    assert result["clean_rows"] == 18
+
+    account = pd.read_excel(result["excel_report"], sheet_name="Account Info")
+    account_values = dict(zip(account["field"], account["value"]))
+    assert account_values["deal_rows_clean"] == 36
+    assert account_values["initial_balance_detected"] == 10000
+
+    flags = pd.read_excel(result["excel_report"], sheet_name="Behavior Flags")
+    flag_types = set(flags["type"])
+    assert "Overtrading" in flag_types
+    assert "Fast Re-entry After Loss" in flag_types
+    assert "Possible Revenge Trading" in flag_types
